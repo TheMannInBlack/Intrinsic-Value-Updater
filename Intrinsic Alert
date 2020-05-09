@@ -1,0 +1,60 @@
+from yahoo_fin import stock_info as si
+import pandas as pd
+import numpy as np
+import pandas_datareader.data as web
+import smtplib, ssl
+
+#_______________________IMPORT HOLDINGS FILE___________________________________
+#read in a file with tickers and intrinsic values
+file = pd.read_csv('Intrinsic Values.csv')
+#create dataframe
+df = pd.DataFrame(file)
+
+### ____________________WEBSCRAPING PORTION____________________________________
+
+df2 = pd.DataFrame()
+for i in df['Ticker']:
+    stock = web.get_quote_yahoo(i)
+    df2 = df2.append(stock)
+print(df2)
+df2.to_csv('Holdingswdata.csv')
+df3 = pd.read_csv('Holdingswdata.csv')
+df3.rename( columns={'Unnamed: 0':'Ticker'}, inplace=True )
+
+df3 = df.merge(df3, on = 'Ticker')
+df3['Upside %'] = (df3['Intrinsic Value'] - df3['price']) / df3['price']
+df4 = df3[df3['Upside %'] > 0 ]
+df5 = df4[['Ticker', 'Upside %']]
+print(df5)
+
+
+#______________________Email Setup and sending________________________________
+#put your email in the quotes
+gmail_user = 'address@gmail.com'
+#put your password in quotes
+gmail_password = 'password'
+
+
+sent_from = gmail_user
+to = ['emailaddress']
+subject = 'Suggested Acquisition Alert'
+body = " I'm setting up automatic email alerts for the VP, so that we can be aware of when holdings go below intrinsic. This email is apart of a program that automatically checks prices throughout the day  I have a mock list of tickers and intrinsic values. The ones that are below intrinsic should be in a table below.", df5
+
+email_text = """\
+From: %s
+To: %s
+Subject: %s
+
+%s
+""" % (sent_from, ", ".join(to), subject, body)
+
+try:
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.ehlo()
+    server.login(gmail_user, gmail_password)
+    server.sendmail(sent_from, to, email_text)
+    server.close()
+
+    print('Email sent!')
+except:
+    print('Something went wrong...')
